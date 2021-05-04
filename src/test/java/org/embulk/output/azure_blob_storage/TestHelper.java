@@ -14,6 +14,8 @@ import org.embulk.config.TaskReport;
 import org.embulk.config.TaskSource;
 import org.embulk.spi.Exec;
 import org.embulk.spi.OutputPlugin;
+import org.embulk.spi.Schema;
+import org.embulk.spi.type.Types;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
@@ -26,6 +28,7 @@ import java.security.InvalidKeyException;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.embulk.output.azure_blob_storage.AzureBlobStorageFileOutputPlugin.CONFIG_MAPPER_FACTORY;
 import static org.junit.Assume.assumeNotNull;
 
 public class TestHelper
@@ -91,7 +94,7 @@ public class TestHelper
         return builder.build();
     }
 
-    private static CloudBlobClient newAzureClient(String accountName, String accountKey)
+    public static CloudBlobClient newAzureClient(String accountName, String accountKey)
     {
         String connectionString = "DefaultEndpointsProtocol=https;" +
                 "AccountName=" + accountName + ";" +
@@ -142,7 +145,7 @@ public class TestHelper
 
     public static ConfigSource config()
     {
-        return Exec.newConfigSource()
+        return CONFIG_MAPPER_FACTORY.newConfigSource()
                 .set("in", inputConfig())
                 .set("parser", parserConfig(schemaConfig()))
                 .set("type", "azure_blob_storage")
@@ -189,6 +192,18 @@ public class TestHelper
         builder.add(ImmutableMap.of("name", "purchase", "type", "timestamp", "format", "%Y%m%d"));
         builder.add(ImmutableMap.of("name", "comment", "type", "string"));
         builder.add(ImmutableMap.of("name", "json_column", "type", "json"));
+        return builder.build();
+    }
+
+    static Schema getSchema()
+    {
+        Schema.Builder builder = new Schema.Builder();
+        builder.add("id", Types.LONG);
+        builder.add("account", Types.LONG);
+        builder.add("time", Types.TIMESTAMP);
+        builder.add("purchase", Types.TIMESTAMP);
+        builder.add("comment", Types.STRING);
+        builder.add("name", Types.JSON);
         return builder.build();
     }
 

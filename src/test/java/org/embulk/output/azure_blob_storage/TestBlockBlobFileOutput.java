@@ -1,23 +1,47 @@
 package org.embulk.output.azure_blob_storage;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 import com.google.common.io.Resources;
+import com.microsoft.azure.storage.blob.BlobType;
+import com.microsoft.azure.storage.blob.CloudBlobClient;
+import org.embulk.EmbulkSystemProperties;
 import org.embulk.EmbulkTestRuntime;
 import org.embulk.config.ConfigSource;
+import org.embulk.config.TaskReport;
+import org.embulk.config.TaskSource;
+import org.embulk.formatter.csv.CsvFormatterPlugin;
+import org.embulk.input.file.LocalFileInputPlugin;
+import org.embulk.parser.csv.CsvParserPlugin;
 import org.embulk.spi.Buffer;
+import org.embulk.spi.Exec;
+import org.embulk.spi.FileInputPlugin;
+import org.embulk.spi.FileOutputPlugin;
 import org.embulk.spi.FileOutputRunner;
+import org.embulk.spi.FormatterPlugin;
+import org.embulk.spi.OutputPlugin;
+import org.embulk.spi.ParserPlugin;
 import org.embulk.spi.Schema;
-import org.embulk.standards.CsvParserPlugin;
+import org.embulk.spi.TempFileSpace;
+import org.embulk.spi.TempFileSpaceImpl;
+import org.embulk.test.TestingEmbulk;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
+import org.junit.rules.TemporaryFolder;
 
 import java.io.FileInputStream;
+import java.io.IOException;
 import java.io.OutputStream;
 import java.lang.reflect.Field;
+import java.nio.file.Paths;
 import java.util.List;
+import java.util.Properties;
 
+import static org.embulk.output.azure_blob_storage.AzureBlobStorageFileOutputPlugin.CONFIG_MAPPER;
+import static org.embulk.output.azure_blob_storage.AzureBlobStorageFileOutputPlugin.CONFIG_MAPPER_FACTORY;
 import static org.embulk.output.azure_blob_storage.TestHelper.AZURE_ACCOUNT_KEY;
 import static org.embulk.output.azure_blob_storage.TestHelper.AZURE_ACCOUNT_NAME;
 import static org.embulk.output.azure_blob_storage.TestHelper.AZURE_CONTAINER;
@@ -26,14 +50,29 @@ import static org.embulk.output.azure_blob_storage.TestHelper.Control;
 import static org.embulk.output.azure_blob_storage.TestHelper.config;
 import static org.embulk.output.azure_blob_storage.TestHelper.convertInputStreamToByte;
 import static org.embulk.output.azure_blob_storage.TestHelper.getFileContentsFromAzure;
+import static org.embulk.output.azure_blob_storage.TestHelper.getSchema;
+import static org.embulk.output.azure_blob_storage.TestHelper.newAzureClient;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeNotNull;
 
 public class TestBlockBlobFileOutput
 {
-    @Rule
-    public EmbulkTestRuntime runtime = new EmbulkTestRuntime();
+    private static final EmbulkSystemProperties EMBULK_SYSTEM_PROPERTIES = EmbulkSystemProperties.of(new Properties());
     private AzureBlobStorageFileOutputPlugin plugin;
+
+    @Rule
+    public TestingEmbulk embulk = TestingEmbulk.builder()
+        .setEmbulkSystemProperties(EMBULK_SYSTEM_PROPERTIES)
+        .registerPlugin(ParserPlugin.class, "csv", CsvParserPlugin.class)
+        .registerPlugin(FormatterPlugin.class, "csv", CsvFormatterPlugin.class)
+        .registerPlugin(FileOutputPlugin.class, "azure_blob_storage", AzureBlobStorageFileOutputPlugin.class)
+        .registerPlugin(FileInputPlugin.class, "file", LocalFileInputPlugin.class)
+        .build();
+
+    @Rule
+    public TemporaryFolder testFolder = new TemporaryFolder();
+
     private FileOutputRunner runner;
 
     @BeforeClass
@@ -46,22 +85,25 @@ public class TestBlockBlobFileOutput
     public void setup()
     {
         plugin = new AzureBlobStorageFileOutputPlugin();
-        runner = new FileOutputRunner(runtime.getInstance(AzureBlobStorageFileOutputPlugin.class));
+        runner = new FileOutputRunner(plugin);
     }
 
     private ConfigSource getBlockBlobConfig()
     {
         return config().set("blob_type", "BLOCK_BLOB");
     }
+
     @Test
     public void testSingleBlock() throws Exception
     {
         ConfigSource configSource = getBlockBlobConfig();
-        AzureBlobStorageFileOutputPlugin.PluginTask task = configSource.loadConfig(AzureBlobStorageFileOutputPlugin.PluginTask.class);
-        Schema schema = configSource.getNested("parser").loadConfig(CsvParserPlugin.PluginTask.class).getSchemaConfig().toSchema();
-        runner.transaction(configSource, schema, 0, new Control());
+        AzureBlobStorageFileOutputPlugin.PluginTask task = CONFIG_MAPPER.map(configSource, AzureBlobStorageFileOutputPlugin.PluginTask.class);
+        Schema schema = CONFIG_MAPPER.map(configSource.getNested("parser"), CsvParserPlugin.PluginTask.class).getSchemaConfig().toSchema();
 
-        BlockBlobFileOutput output = (BlockBlobFileOutput) plugin.open(task.dump(), 0);
+        final CloudBlobClient blobClient = newAzureClient(task.getAccountName(), task.getAccountKey());
+        final TempFileSpace tempFileSpace = TempFileSpaceImpl.with(testFolder.newFolder().toPath(), "output-azure-blob");
+
+        BlockBlobFileOutput output = new BlockBlobFileOutput(blobClient, task, 0, tempFileSpace);
         output.nextFile();
 
         FileInputStream is = new FileInputStream(Resources.getResource("one_record.csv").getPath());
@@ -70,7 +112,6 @@ public class TestBlockBlobFileOutput
         output.add(buffer);
 
         output.finish();
-        output.commit();
 
         String remotePath = AZURE_PATH_PREFIX + String.format(task.getSequenceFormat(), 0, 0) + task.getFileNameExtension();
 
@@ -86,14 +127,19 @@ public class TestBlockBlobFileOutput
     }
 
     @Test
-    public void testMultipleBlocks() throws Exception
+    public void testMultipleBlocks()
+        throws Exception
     {
         ConfigSource configSource = getBlockBlobConfig();
-        AzureBlobStorageFileOutputPlugin.PluginTask task = configSource.loadConfig(AzureBlobStorageFileOutputPlugin.PluginTask.class);
-        Schema schema = configSource.getNested("parser").loadConfig(CsvParserPlugin.PluginTask.class).getSchemaConfig().toSchema();
-        runner.transaction(configSource, schema, 0, new Control());
+        AzureBlobStorageFileOutputPlugin.PluginTask task = CONFIG_MAPPER.map(configSource, AzureBlobStorageFileOutputPlugin.PluginTask.class);
+        Schema schema = CONFIG_MAPPER.map(configSource.getNested("parser"), CsvParserPlugin.PluginTask.class).getSchemaConfig().toSchema();
 
-        BlockBlobFileOutput output = (BlockBlobFileOutput) plugin.open(task.dump(), 0);
+        final CloudBlobClient blobClient = newAzureClient(task.getAccountName(), task.getAccountKey());
+
+        final TempFileSpace tempFileSpace = TempFileSpaceImpl.with(testFolder.newFolder().toPath(), "output-azure-blob");
+
+        BlockBlobFileOutput output = new BlockBlobFileOutput(blobClient, task, 0, tempFileSpace);
+
         // set small block size to check for multiple blocks upload
         Field blockSize = output.getClass().getDeclaredField("blockSize");
         blockSize.setAccessible(true);
@@ -113,7 +159,6 @@ public class TestBlockBlobFileOutput
         }
 
         output.finish();
-        output.commit();
 
         String remotePath = AZURE_PATH_PREFIX + String.format(task.getSequenceFormat(), 0, 0) + task.getFileNameExtension();
 

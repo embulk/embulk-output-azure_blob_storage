@@ -1,3 +1,6 @@
+## 0.1.11 - 2022-12-09
+* [maintenance] catch up with embulk 0.10.29 [#18](https://github.com/embulk/embulk-output-azure_blob_storage/pull/18)
+
 ## 0.1.10 - 2021-08-07
 * [maintenance] Update the newest `azure-storage:8.6.6`
 * [improvement] BLOCK_BLOB supports for large file upload, and code refactoring. [#20](https://github.com/embulk/embulk-output-azure_blob_storage/pull/20)
