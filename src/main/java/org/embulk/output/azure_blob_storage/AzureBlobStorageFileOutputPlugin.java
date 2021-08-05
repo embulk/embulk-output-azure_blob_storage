@@ -131,47 +131,76 @@ public class AzureBlobStorageFileOutputPlugin
             CloudBlobClient blobClient = newAzureClient(task.getAccountName(), task.getAccountKey());
             CloudBlobContainer container = blobClient.getContainerReference(task.getContainer());
 
-            CloudBlockBlob blockBlob = container.getBlockBlobReference(getFilePath(task));
-
-            return new AzureFileOutput(blockBlob, task, taskIndex);
+            return new AzureFileOutput(container, task, taskIndex);
         }
         catch (Exception e) {
             throw new DataException(e);
         }
     }
 
-    private String getFilePath(PluginTask task)
-    {
-        String suffix = task.getFileNameExtension();
-        if (!suffix.startsWith(".")) {
-            suffix = "." + suffix;
-        }
-        return task.getPathPrefix() + suffix;
-    }
-
     public static class AzureFileOutput implements TransactionalFileOutput
     {
-        private final CloudBlockBlob blockBlob;
+        private final int blockSize;
+        private final CloudBlobContainer container;
+        private final String pathPrefix;
+        private final String sequenceFormat;
+        private final String pathSuffix;
         private final int maxConnectionRetry;
         private BufferedOutputStream output = null;
+        private CloudBlockBlob blockBlob;
+        private int fileIndex;
+        private final int taskIndex;
         private File file;
-        private int chunkIndex = 0;
-        private List<BlockEntry> blocks = new ArrayList<>();
+        private int blockIndex = 0;
+        private final List<BlockEntry> blocks = new ArrayList<>();
 
-        public AzureFileOutput(CloudBlockBlob blockBlob, PluginTask task, int taskIndex)
+        public AzureFileOutput(CloudBlobContainer container, PluginTask task, int taskIndex)
         {
-            this.blockBlob = blockBlob;
+            this.container = container;
+            this.taskIndex = taskIndex;
+            this.pathPrefix = task.getPathPrefix();
+            this.sequenceFormat = task.getSequenceFormat();
+            this.pathSuffix = task.getFileNameExtension();
             this.maxConnectionRetry = task.getMaxConnectionRetry();
+            // ~ 90M. init here for unit test changes it
+            this.blockSize = 90 * 1024 * 1024;
         }
 
         @Override
         public void nextFile()
         {
-            closeFile();
+            // close and commit current file
+            closeCurrentFile();
+            commitCurrentBlock();
+
+            // prepare for next new file
             newTempFile();
+            newBlockBlob();
+            fileIndex++;
         }
 
-        private void closeFile()
+        private void newBlockBlob()
+        {
+            try {
+                blockBlob = container.getBlockBlobReference(newBlobName());
+                blockIndex = 0;
+                blocks.clear();
+            }
+            catch (Exception e) {
+                throw new DataException(e);
+            }
+        }
+
+        private String newBlobName()
+        {
+            String suffix = pathSuffix;
+            if (!suffix.startsWith(".")) {
+                suffix = "." + suffix;
+            }
+            return pathPrefix + String.format(sequenceFormat, taskIndex, fileIndex) + suffix;
+        }
+
+        private void closeCurrentFile()
         {
             if (output != null) {
                 try {
@@ -187,7 +216,6 @@ public class AzureBlobStorageFileOutputPlugin
         {
             try {
                 file = Exec.getTempFileSpace().createTempFile();
-                log.info("Creating new temp file: {}", file.getAbsolutePath());
                 output = new BufferedOutputStream(new FileOutputStream(file));
             }
             catch (IOException ex) {
@@ -200,7 +228,13 @@ public class AzureBlobStorageFileOutputPlugin
         {
             try {
                 output.write(buffer.array(), buffer.offset(), buffer.limit());
-                output.flush();
+
+                // upload this block if the size reaches limit (data still in the buffer)
+                if (file.length() > blockSize) {
+                    closeCurrentFile();
+                    uploadFile();
+                    newTempFile();
+                }
             }
             catch (IOException ex) {
                 throw new RuntimeException(ex);
@@ -220,12 +254,18 @@ public class AzureBlobStorageFileOutputPlugin
         @Override
         public void finish()
         {
-            closeFile();
+            closeCurrentFile();
             uploadFile();
+            commitCurrentBlock();
+        }
+
+        private void commitCurrentBlock()
+        {
             // commit blob
             if (!blocks.isEmpty()) {
                 try {
                     blockBlob.commitBlockList(blocks);
+                    blocks.clear();
                 }
                 catch (StorageException e) {
                     throw new DataException(e);
@@ -235,6 +275,11 @@ public class AzureBlobStorageFileOutputPlugin
 
         private Void uploadFile()
         {
+            if (file.length() == 0) {
+                log.warn("Skipped empty block {}", file.getName());
+                return null;
+            }
+
             try {
                 return retryExecutor()
                         .withRetryLimit(maxConnectionRetry)
@@ -244,11 +289,11 @@ public class AzureBlobStorageFileOutputPlugin
                             @Override
                             public Void call() throws IOException, StorageException
                             {
-                                String blockId = Base64.getEncoder().encodeToString(String.format("%10d", chunkIndex).getBytes());
+                                String blockId = Base64.getEncoder().encodeToString(String.format("%10d", blockIndex).getBytes());
                                 blockBlob.uploadBlock(blockId, new BufferedInputStream(new FileInputStream(file)), file.length());
                                 blocks.add(new BlockEntry(blockId, BlockSearchMode.UNCOMMITTED));
-                                log.info("Uploaded block id: {} with size: {}kb", blockId, file.length() / 1024);
-                                chunkIndex++;
+                                log.info("Uploaded block file: {}, id: {}, size ~ {}kb", file.getName(), blockId, file.length() / 1024);
+                                blockIndex++;
                                 return null;
                             }
 
@@ -297,7 +342,10 @@ public class AzureBlobStorageFileOutputPlugin
         }
 
         @Override
-        public void close() {}
+        public void close()
+        {
+            closeCurrentFile();
+        }
 
         @Override
         public void abort() {}
