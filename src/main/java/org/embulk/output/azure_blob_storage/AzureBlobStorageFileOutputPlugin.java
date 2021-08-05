@@ -241,13 +241,6 @@ public class AzureBlobStorageFileOutputPlugin
             }
             finally {
                 buffer.release();
-
-                if (file.length() > 90 * 1024 * 1024) {
-                    closeFile();
-                    log.info("Prepare uploading file: {}, size: {}kb", file.getAbsolutePath(), file.length()/1024);
-                    uploadFile();
-                    newTempFile();
-                }
             }
         }
 
