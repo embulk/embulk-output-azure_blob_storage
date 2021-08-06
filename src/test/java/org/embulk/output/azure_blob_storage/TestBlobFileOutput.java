@@ -9,6 +9,7 @@ import org.embulk.spi.FileOutputRunner;
 import org.embulk.spi.Schema;
 import org.embulk.standards.CsvParserPlugin;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 
@@ -18,6 +19,9 @@ import java.io.FileNotFoundException;
 import java.lang.reflect.Field;
 import java.util.List;
 
+import static org.embulk.output.azure_blob_storage.TestHelper.AZURE_ACCOUNT_KEY;
+import static org.embulk.output.azure_blob_storage.TestHelper.AZURE_ACCOUNT_NAME;
+import static org.embulk.output.azure_blob_storage.TestHelper.AZURE_CONTAINER;
 import static org.embulk.output.azure_blob_storage.TestHelper.AZURE_PATH_PREFIX;
 import static org.embulk.output.azure_blob_storage.TestHelper.LOCAL_PATH_PREFIX;
 import static org.embulk.output.azure_blob_storage.TestHelper.config;
@@ -25,6 +29,7 @@ import static org.embulk.output.azure_blob_storage.TestHelper.convertInputStream
 import static org.embulk.output.azure_blob_storage.TestHelper.getFileContentsFromAzure;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeNotNull;
 
 public class TestBlobFileOutput
 {
@@ -32,6 +37,12 @@ public class TestBlobFileOutput
     public EmbulkTestRuntime runtime = new EmbulkTestRuntime();
     private AzureBlobStorageFileOutputPlugin plugin;
     private FileOutputRunner runner;
+
+    @BeforeClass
+    public static void init()
+    {
+        assumeNotNull(AZURE_ACCOUNT_NAME, AZURE_ACCOUNT_KEY, AZURE_CONTAINER);
+    }
 
     @Before
     public void setup()

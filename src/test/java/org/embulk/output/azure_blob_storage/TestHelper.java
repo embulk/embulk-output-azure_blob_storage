@@ -49,7 +49,6 @@ public class TestHelper
         AZURE_ACCOUNT_KEY = System.getenv("AZURE_ACCOUNT_KEY");
         AZURE_CONTAINER = System.getenv("AZURE_CONTAINER");
         // skip test cases, if environment variables are not set.
-        assumeNotNull(AZURE_ACCOUNT_NAME, AZURE_ACCOUNT_KEY, AZURE_CONTAINER);
         AZURE_CONTAINER_DIRECTORY = System.getenv("AZURE_CONTAINER_DIRECTORY") != null ? getDirectory(System.getenv("AZURE_CONTAINER_DIRECTORY")) : getDirectory("");
         AZURE_PATH_PREFIX = AZURE_CONTAINER_DIRECTORY + "sample_";
         LOCAL_PATH_PREFIX = Resources.getResource("sample_01.csv").getPath();

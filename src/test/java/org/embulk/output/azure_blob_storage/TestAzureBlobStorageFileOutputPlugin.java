@@ -13,6 +13,7 @@ import org.embulk.spi.FileOutputRunner;
 import org.embulk.spi.Schema;
 import org.embulk.standards.CsvParserPlugin;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 
@@ -30,6 +31,7 @@ import static org.embulk.output.azure_blob_storage.TestHelper.isExistsContainer;
 import static org.embulk.output.azure_blob_storage.TestHelper.parserConfig;
 import static org.embulk.output.azure_blob_storage.TestHelper.schemaConfig;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assume.assumeNotNull;
 
 public class TestAzureBlobStorageFileOutputPlugin
 {
@@ -38,6 +40,12 @@ public class TestAzureBlobStorageFileOutputPlugin
     @Rule
     public EmbulkTestRuntime runtime = new EmbulkTestRuntime();
     private AzureBlobStorageFileOutputPlugin plugin;
+
+    @BeforeClass
+    public static void init()
+    {
+        assumeNotNull(AZURE_ACCOUNT_NAME, AZURE_ACCOUNT_KEY, AZURE_CONTAINER);
+    }
 
     @Before
     public void createResources()
