@@ -6,6 +6,7 @@ import com.microsoft.azure.storage.blob.BlockSearchMode;
 import com.microsoft.azure.storage.blob.CloudBlobClient;
 import com.microsoft.azure.storage.blob.CloudBlobContainer;
 import com.microsoft.azure.storage.blob.CloudBlockBlob;
+import com.microsoft.azure.storage.blob.DeleteSnapshotsOption;
 import org.embulk.config.ConfigException;
 import org.embulk.config.TaskReport;
 import org.embulk.spi.Buffer;
@@ -69,7 +70,7 @@ public class BlockBlobFileOutput implements TransactionalFileOutput
     {
         // close and commit current file
         closeCurrentFile();
-        commitCurrentBlock();
+        commitCurrentBlob();
 
         // prepare for next new file
         newTempFile();
@@ -145,12 +146,13 @@ public class BlockBlobFileOutput implements TransactionalFileOutput
     @Override
     public void finish()
     {
+        logger.info(">>> finish");
         closeCurrentFile();
         uploadFile();
-        commitCurrentBlock();
+        commitCurrentBlob();
     }
 
-    private void commitCurrentBlock()
+    private void commitCurrentBlob()
     {
         // commit blob
         if (!blocks.isEmpty()) {
@@ -234,11 +236,24 @@ public class BlockBlobFileOutput implements TransactionalFileOutput
     @Override
     public void close()
     {
+        logger.info(">>> close");
         closeCurrentFile();
     }
 
     @Override
-    public void abort() {}
+    public void abort()
+    {
+        try {
+            // delete if blob not exist <=> delete all uncommitted blocks
+            // if blob exist, leave it as is. uncommitted blocks will be garbage collected in 1 week.
+            if (!blockBlob.exists()) {
+                blockBlob.delete();
+            }
+        }
+        catch (StorageException e) {
+            throw new DataException(e);
+        }
+    }
 
     @Override
     public TaskReport commit()
