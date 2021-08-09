@@ -8,7 +8,7 @@
 
 * **Plugin type**: file output
 * **Resume supported**: no
-* **Cleanup supported**: no
+* **Cleanup supported**: yes
 
 ## Configuration
 
@@ -19,6 +19,7 @@ First, create Azure [Storage Account](https://azure.microsoft.com/en-us/document
 - **container**: container name (string, required)
 - **path_prefix**: prefix of target keys (string, required) (string, required)
 - **file_ext**: e.g. "csv.gz, json.gz" (string, required)
+- **blob_type**: `BLOCK_BLOB | PAGE_BLOB | APPEND_BLOB | UNSPECIFIED`, currently supports BLOCK_BLOB, other types will fall back into `UNSPECIFIED` (string, default `UNSPECIFIED`)
 
 
 ### Auto create container
@@ -38,6 +39,7 @@ out:
   container: my-container
   path_prefix: logs/csv-
   file_ext: csv.gz
+  blob_type: BLOCK_BLOB
   formatter:
     type: csv
     header_line: false

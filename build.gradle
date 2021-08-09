@@ -17,13 +17,13 @@ configurations {
 sourceCompatibility = 1.8
 targetCompatibility = 1.8
 
-version = "0.1.9"
+version = "0.1.10"
 
 dependencies {
     compile  "org.embulk:embulk-core:0.9.8"
     provided "org.embulk:embulk-core:0.9.8"
 
-    compile "com.microsoft.azure:azure-storage:8.0.0"
+    compile "com.microsoft.azure:azure-storage:8.6.6"
 
     testCompile "junit:junit:4.12"
     testCompile "org.embulk:embulk-core:0.9.8:tests"
