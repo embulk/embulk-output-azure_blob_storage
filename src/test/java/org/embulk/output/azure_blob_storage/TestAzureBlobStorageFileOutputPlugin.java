@@ -109,7 +109,6 @@ public class TestAzureBlobStorageFileOutputPlugin
                                   .set("in", inputConfig())
                                   .set("parser", parserConfig(schemaConfig()))
                                   .set("type", "azure_blob_storage")
-                                  .set("type", "azure_blob_storage")
                                   .set("account_name", AZURE_ACCOUNT_NAME)
                                   .set("account_key", AZURE_ACCOUNT_KEY)
                                   .set("container", AZURE_CONTAINER)
