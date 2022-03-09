@@ -17,7 +17,7 @@ targetCompatibility = 1.8
 
 group = "org.embulk"
 description = "Dumps records to Microsoft Azure Blob Storage."
-version = "0.2.0-SNAPSHOT"
+version = "0.2.0"
 
 def embulkVersion = '0.10.29'
 
