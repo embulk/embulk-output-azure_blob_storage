@@ -5,22 +5,33 @@ import com.microsoft.azure.storage.StorageException;
 import com.microsoft.azure.storage.blob.BlobType;
 import com.microsoft.azure.storage.blob.CloudBlobClient;
 import com.microsoft.azure.storage.blob.CloudBlobContainer;
-import org.embulk.config.Config;
-import org.embulk.config.ConfigDefault;
+import com.microsoft.azure.storage.blob.CloudBlockBlob;
+
 import org.embulk.config.ConfigDiff;
 import org.embulk.config.ConfigException;
 import org.embulk.config.ConfigSource;
-import org.embulk.config.Task;
 import org.embulk.config.TaskReport;
 import org.embulk.config.TaskSource;
 import org.embulk.spi.Exec;
 import org.embulk.spi.FileOutputPlugin;
+import org.embulk.spi.TempFileSpace;
 import org.embulk.spi.TransactionalFileOutput;
+
+import org.embulk.util.config.Config;
+import org.embulk.util.config.ConfigDefault;
+import org.embulk.util.config.ConfigMapper;
+import org.embulk.util.config.ConfigMapperFactory;
+import org.embulk.util.config.Task;
+import org.embulk.util.retryhelper.RetryGiveupException;
+import org.embulk.util.retryhelper.Retryable;
 import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.net.URISyntaxException;
 import java.security.InvalidKeyException;
 import java.util.List;
+
+import static org.embulk.util.retryhelper.RetryExecutor.retryExecutor;
 
 public class AzureBlobStorageFileOutputPlugin
         implements FileOutputPlugin
@@ -59,13 +70,20 @@ public class AzureBlobStorageFileOutputPlugin
         String getBlobType();
     }
 
-    private static final Logger log = Exec.getLogger(AzureBlobStorageFileOutputPlugin.class);
+    private static final Logger log =  LoggerFactory.getLogger(AzureBlobStorageFileOutputPlugin.class);
+
+    public static final ConfigMapperFactory CONFIG_MAPPER_FACTORY = ConfigMapperFactory
+        .builder()
+        .addDefaultModules()
+        .build();
+    public static final ConfigMapper CONFIG_MAPPER = CONFIG_MAPPER_FACTORY.createConfigMapper();
+
 
     @Override
     public ConfigDiff transaction(ConfigSource config, int taskCount,
                                   FileOutputPlugin.Control control)
     {
-        PluginTask task = config.loadConfig(PluginTask.class);
+        PluginTask task = CONFIG_MAPPER.map(config, PluginTask.class);
 
         try {
             CloudBlobClient blobClient = newAzureClient(task.getAccountName(), task.getAccountKey());
@@ -80,7 +98,7 @@ public class AzureBlobStorageFileOutputPlugin
             throw new ConfigException(ex);
         }
 
-        return resume(task.dump(), taskCount, control);
+        return resume(task.toTaskSource(), taskCount, control);
     }
 
     @Override
@@ -88,7 +106,7 @@ public class AzureBlobStorageFileOutputPlugin
     {
         control.run(taskSource);
 
-        return Exec.newConfigDiff();
+        return CONFIG_MAPPER_FACTORY.newConfigDiff();
     }
 
     @Override
@@ -115,16 +133,16 @@ public class AzureBlobStorageFileOutputPlugin
     @Override
     public TransactionalFileOutput open(TaskSource taskSource, final int taskIndex)
     {
-        final PluginTask task = taskSource.loadTask(PluginTask.class);
+        final PluginTask task = CONFIG_MAPPER_FACTORY.createTaskMapper().map(taskSource, PluginTask.class);
         final BlobType blobType = BlobType.valueOf(task.getBlobType());
         final CloudBlobClient blobClient = newAzureClient(task.getAccountName(), task.getAccountKey());
 
         // should support multiple blob type in the future.
         switch (blobType) {
             case BLOCK_BLOB:
-                return new BlockBlobFileOutput(blobClient, task, taskIndex);
+                return new BlockBlobFileOutput(blobClient, task, taskIndex, Exec.getTempFileSpace());
             default:
-                return new BlobFileOutput(blobClient, task, taskIndex);
+                return new BlobFileOutput(blobClient, task, taskIndex, Exec.getTempFileSpace());
         }
     }
 }

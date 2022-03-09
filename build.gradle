@@ -1,41 +1,196 @@
 plugins {
-    id "com.jfrog.bintray" version "1.1"
-    id "com.github.jruby-gradle.base" version "0.1.5"
     id "java"
     id "checkstyle"
     id "jacoco"
+    id "maven"
+    id 'maven-publish'
+    id "signing"
+    id "org.embulk.embulk-plugins" version "0.4.2"
 }
-import com.github.jrubygradle.JRubyExec
+
 repositories {
     mavenCentral()
-    jcenter()
-}
-configurations {
-    provided
 }
 
 sourceCompatibility = 1.8
 targetCompatibility = 1.8
 
-version = "0.1.10"
+group = "org.embulk"
+description = "Dumps records to Microsoft Azure Blob Storage."
+version = "0.2.0-SNAPSHOT"
+
+def embulkVersion = '0.10.29'
+
+tasks.withType(JavaCompile) {
+    options.compilerArgs << "-Xlint:deprecation" << "-Xlint:unchecked"
+    options.encoding = "UTF-8"
+}
+
+java {
+    withJavadocJar()
+    withSourcesJar()
+}
 
 dependencies {
-    compile  "org.embulk:embulk-core:0.9.8"
-    provided "org.embulk:embulk-core:0.9.8"
+    compileOnly "org.embulk:embulk-api:$embulkVersion"
+    compileOnly "org.embulk:embulk-spi:$embulkVersion"
 
-    compile "com.microsoft.azure:azure-storage:8.6.6"
+    compile("org.embulk:embulk-util-config:0.3.1") {
+        // Conflict with Embulk Core
+        exclude group: 'com.fasterxml.jackson.core', module: 'jackson-annotations'
+        exclude group: 'com.fasterxml.jackson.core', module: 'jackson-core'
+        exclude group: 'com.fasterxml.jackson.core', module: 'jackson-databind'
+        exclude group: 'com.fasterxml.jackson.datatype', module: 'jackson-datatype-jdk8'
+        exclude group: 'javax.validation', module: 'validation-api'
+    }
 
-    testCompile "junit:junit:4.12"
-    testCompile "org.embulk:embulk-core:0.9.8:tests"
-    testCompile "org.embulk:embulk-standards:0.9.8"
+    compile('org.embulk:embulk-util-retryhelper-jetty92:0.8.2')
+
+    compile 'com.fasterxml.jackson.core:jackson-core:2.6.7'
+    compile 'com.fasterxml.jackson.core:jackson-annotations:2.6.7'
+    compile 'com.fasterxml.jackson.core:jackson-databind:2.6.7'
+    compile 'com.fasterxml.jackson.datatype:jackson-datatype-jdk8:2.6.7'
+    compile 'javax.validation:validation-api:1.1.0.Final'
+
+    compile ('com.microsoft.azure:azure-storage:8.6.6') {
+        exclude group: 'org.slf4j', module: 'slf4j-api'
+        exclude group: 'com.fasterxml.jackson.core', module: 'jackson-core'
+        exclude group: 'com.google.guava', module: 'guava'
+        exclude group: 'org.slf4j', module: 'slf4j-api'
+        exclude group: 'org.apache.commons', module: 'commons-lang3'
+    }
+
+    testCompile "junit:junit:4.13"
+    testCompile "org.mockito:mockito-core:2.28.2"
+    testCompile "org.embulk:embulk-core:$embulkVersion:tests"
+    testCompile "org.embulk:embulk-deps:$embulkVersion"
+    testCompile "org.embulk:embulk-junit4:$embulkVersion"
+    testCompile "org.embulk:embulk-input-file:$embulkVersion"
+    testCompile "org.embulk:embulk-formatter-csv:$embulkVersion"
+    testCompile "org.embulk:embulk-parser-csv:$embulkVersion"
 }
 
-task classpath(type: Copy, dependsOn: ["jar"]) {
-    doFirst { file("classpath").deleteDir() }
-    from (configurations.runtime - configurations.provided + files(jar.archivePath))
-    into "classpath"
+embulkPlugin {
+    mainClass = "org.embulk.output.azure_blob_storage.AzureBlobStorageFileOutputPlugin"
+    category = "output"
+    type = "azure_blob_storage"
 }
-clean { delete "classpath" }
+
+javadoc {
+    options {
+        locale = "en_US"
+        encoding = "UTF-8"
+    }
+}
+
+jar {
+    from rootProject.file("LICENSE")
+}
+
+sourcesJar {
+    from rootProject.file("LICENSE")
+}
+
+javadocJar {
+    from rootProject.file("LICENSE")
+}
+
+// It should not publish a `.module` file in Maven Central.
+// https://docs.gradle.org/current/userguide/publishing_gradle_module_metadata.html#sub:disabling-gmm-publication
+tasks.withType(GenerateModuleMetadata) {
+    enabled = false
+}
+
+publishing {
+    publications {
+        maven(MavenPublication) {
+            groupId = project.group
+            artifactId = project.name
+
+            from components.java
+
+            pom {  // https://central.sonatype.org/pages/requirements.html
+                packaging "jar"
+
+                name = project.name
+                description = project.description
+                url = "https://www.embulk.org/"
+
+                developers {
+                    developer {
+                        name = "Satoshi Akama"
+                        email = "satoshiakama@gmail.com"
+                    }
+                    developer {
+                        name = "Hieu Duong"
+                        email = "duongminhhieu89@gmail.com"
+                    }
+                    developer {
+                        name = "Trung Huynh"
+                        email = "httrung90@gmail.com"
+                    }
+                    developer {
+                        name = "Tuan Bui"
+                        email = "xuantuan58@gmail.com"
+                    }
+                }
+
+                licenses {
+                    license {
+                        // http://central.sonatype.org/pages/requirements.html#license-information
+                        name = "The Apache License, Version 2.0"
+                        url = "https://www.apache.org/licenses/LICENSE-2.0.txt"
+                    }
+                }
+
+                scm {
+                    connection = "scm:git:git://github.com/embulk/embulk-output-azure_blob_storage.git"
+                    developerConnection = "scm:git:git@github.com:embulk/embulk-output-azure_blob_storage.git"
+                    url = "https://github.com/embulk/embulk-output-azure_blob_storage"
+                }
+            }
+        }
+    }
+
+    repositories {
+        maven {  // publishMavenPublicationToMavenCentralRepository
+            name = "mavenCentral"
+            if (project.version.endsWith("-SNAPSHOT")) {
+                url "https://oss.sonatype.org/content/repositories/snapshots"
+            } else {
+                url "https://oss.sonatype.org/service/local/staging/deploy/maven2"
+            }
+
+            credentials {
+                username = project.hasProperty("ossrhUsername") ? ossrhUsername : ""
+                password = project.hasProperty("ossrhPassword") ? ossrhPassword : ""
+            }
+        }
+    }
+}
+
+signing {
+    sign publishing.publications.maven
+}
+
+gem {
+    authors = [ "Satoshi Akama" ]
+    email = [ "satoshiakama@gmail.com" ]
+    summary = "Microsoft Azure Blob Storage file output plugin for Embulk"
+    homepage = "https://github.com/embulk/embulk-output-azure_blob_storage"
+    licenses = [ "Apache-2.0" ]
+}
+
+gemPush {
+    host = "https://rubygems.org"
+}
+
+test {
+    jvmArgs '-XX:MaxPermSize=128M', '-Xmx2048m'
+    testLogging {
+        events "passed", "skipped", "failed"
+    }
+}
 
 checkstyle {
     configFile = file("${project.rootDir}/config/checkstyle/checkstyle.xml")
@@ -54,29 +209,11 @@ task checkstyle(type: Checkstyle) {
     source = sourceSets.main.allJava + sourceSets.test.allJava
 }
 
-task gem(type: JRubyExec, dependsOn: ["build", "gemspec", "classpath"]) {
-    jrubyArgs "-rrubygems/gem_runner", "-eGem::GemRunner.new.run(ARGV)", "build"
-    script "build/gemspec"
-    doLast { ant.move(file: "${project.name}-${project.version}.gem", todir: "pkg") }
-}
-
-task gemspec << { file("build/gemspec").write($/
-Gem::Specification.new do |spec|
-  spec.name          = "${project.name}"
-  spec.version       = "${project.version}"
-  spec.authors       = ["Satoshi Akama"]
-  spec.summary       = %[Microsoft Azure Blob Storage file output plugin for Embulk]
-  spec.description   = %[Stores files on Microsoft Azure Blob Storage.]
-  spec.email         = ["satoshiakama@gmail.com"]
-  spec.licenses      = ["Apache-2.0"]
-  spec.homepage      = "https://github.com/embulk/embulk-output-azure_blob_storage"
-
-  spec.files         = `git ls-files`.split("\n") + Dir["classpath/*.jar"]
-  spec.test_files    = spec.files.grep(%r"^(test|spec)/")
-  spec.require_paths = ["lib"]
-
-  spec.add_development_dependency 'bundler', ['~> 1.0']
-  spec.add_development_dependency 'rake', ['>= 10.0']
-end
-/$)
+jacocoTestReport {
+    group = "Reporting"
+    reports {
+        xml.enabled false
+        csv.enabled false
+        html.destination file("${buildDir}/reports/coverage")
+    }
 }

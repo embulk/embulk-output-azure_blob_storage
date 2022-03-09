@@ -12,8 +12,10 @@ import org.embulk.config.TaskReport;
 import org.embulk.spi.Buffer;
 import org.embulk.spi.DataException;
 import org.embulk.spi.Exec;
+import org.embulk.spi.TempFileSpace;
 import org.embulk.spi.TransactionalFileOutput;
-import org.embulk.spi.util.RetryExecutor;
+import org.embulk.util.retryhelper.RetryGiveupException;
+import org.embulk.util.retryhelper.Retryable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,7 +31,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 
-import static org.embulk.spi.util.RetryExecutor.retryExecutor;
+import static org.embulk.util.retryhelper.RetryExecutor.retryExecutor;
 
 public class BlockBlobFileOutput implements TransactionalFileOutput
 {
@@ -47,11 +49,13 @@ public class BlockBlobFileOutput implements TransactionalFileOutput
     private File file;
     private int blockIndex = 0;
     private final List<BlockEntry> blocks = new ArrayList<>();
+    private final TempFileSpace tempFileSpace;
 
-    public BlockBlobFileOutput(CloudBlobClient client, AzureBlobStorageFileOutputPlugin.PluginTask task, int taskIndex)
+    public BlockBlobFileOutput(CloudBlobClient client, AzureBlobStorageFileOutputPlugin.PluginTask task, int taskIndex, final TempFileSpace tempFileSpace)
     {
         try {
             this.container = client.getContainerReference(task.getContainer());
+            this.tempFileSpace = tempFileSpace;
         }
         catch (Exception e) {
             throw new ConfigException(e);
@@ -114,7 +118,7 @@ public class BlockBlobFileOutput implements TransactionalFileOutput
     private void newTempFile()
     {
         try {
-            file = Exec.getTempFileSpace().createTempFile();
+            file = this.tempFileSpace.createTempFile();
             output = new BufferedOutputStream(new FileOutputStream(file));
         }
         catch (IOException ex) {
@@ -179,7 +183,7 @@ public class BlockBlobFileOutput implements TransactionalFileOutput
                     .withRetryLimit(maxConnectionRetry)
                     .withInitialRetryWait(500)
                     .withMaxRetryWait(30 * 1000)
-                    .runInterruptible(new RetryExecutor.Retryable<Void>() {
+                    .runInterruptible(new Retryable<Void>() {
                         @Override
                         public Void call() throws IOException, StorageException
                         {
@@ -199,10 +203,10 @@ public class BlockBlobFileOutput implements TransactionalFileOutput
 
                         @Override
                         public void onRetry(Exception exception, int retryCount, int retryLimit, int retryWait)
-                                throws RetryExecutor.RetryGiveupException
+                                throws RetryGiveupException
                         {
                             if (exception instanceof FileNotFoundException || exception instanceof URISyntaxException || exception instanceof ConfigException) {
-                                throw new RetryExecutor.RetryGiveupException(exception);
+                                throw new RetryGiveupException(exception);
                             }
                             String message = String.format("Azure Blob Storage put request failed. Retrying %d/%d after %d seconds. Message: %s",
                                     retryCount, retryLimit, retryWait / 1000, exception.getMessage());
@@ -220,7 +224,7 @@ public class BlockBlobFileOutput implements TransactionalFileOutput
                         }
                     });
         }
-        catch (RetryExecutor.RetryGiveupException ex) {
+        catch (RetryGiveupException ex) {
             throw new RuntimeException(ex.getCause());
         }
         catch (InterruptedException ex) {

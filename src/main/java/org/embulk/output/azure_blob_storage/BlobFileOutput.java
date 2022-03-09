@@ -1,6 +1,5 @@
 package org.embulk.output.azure_blob_storage;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.microsoft.azure.storage.StorageException;
 import com.microsoft.azure.storage.blob.CloudBlobClient;
 import com.microsoft.azure.storage.blob.CloudBlobContainer;
@@ -9,9 +8,13 @@ import org.embulk.config.ConfigException;
 import org.embulk.config.TaskReport;
 import org.embulk.spi.Buffer;
 import org.embulk.spi.Exec;
+import org.embulk.spi.TempFileSpace;
 import org.embulk.spi.TransactionalFileOutput;
-import org.embulk.spi.util.RetryExecutor;
+import org.embulk.util.retryhelper.RetryExecutor;
+import org.embulk.util.retryhelper.RetryGiveupException;
+import org.embulk.util.retryhelper.Retryable;
 import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -23,15 +26,14 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 
 import static org.embulk.output.azure_blob_storage.AzureBlobStorageFileOutputPlugin.PluginTask;
-import static org.embulk.spi.util.RetryExecutor.RetryGiveupException;
-import static org.embulk.spi.util.RetryExecutor.retryExecutor;
+import static org.embulk.util.retryhelper.RetryExecutor.retryExecutor;
 
 /**
  * Extract class from previous version of {@link AzureBlobStorageFileOutputPlugin} without logic modification
  */
 public class BlobFileOutput implements TransactionalFileOutput
 {
-    private final Logger logger = Exec.getLogger(AzureBlobStorageFileOutputPlugin.class);
+    private final Logger logger = LoggerFactory.getLogger(AzureBlobStorageFileOutputPlugin.class);
     private final CloudBlobClient client;
     private final String containerName;
     private final String pathPrefix;
@@ -43,8 +45,9 @@ public class BlobFileOutput implements TransactionalFileOutput
     private File file;
     private String filePath;
     private int taskIndex;
+    private TempFileSpace tempFileSpace;
 
-    public BlobFileOutput(CloudBlobClient client, PluginTask task, int taskIndex)
+    public BlobFileOutput(CloudBlobClient client, PluginTask task, int taskIndex, final TempFileSpace tempFileSpace)
     {
         this.client = client;
         this.containerName = task.getContainer();
@@ -53,6 +56,7 @@ public class BlobFileOutput implements TransactionalFileOutput
         this.sequenceFormat = task.getSequenceFormat();
         this.pathSuffix = task.getFileNameExtension();
         this.maxConnectionRetry = task.getMaxConnectionRetry();
+        this.tempFileSpace = tempFileSpace;
     }
 
     @Override
@@ -66,7 +70,7 @@ public class BlobFileOutput implements TransactionalFileOutput
                 suffix = "." + suffix;
             }
             filePath = pathPrefix + String.format(sequenceFormat, taskIndex, fileIndex) + suffix;
-            file = Exec.getTempFileSpace().createTempFile();
+            file = this.tempFileSpace.createTempFile();
             logger.info("Writing local file {}", file.getAbsolutePath());
             output = new BufferedOutputStream(new FileOutputStream(file));
         }
@@ -120,7 +124,7 @@ public class BlobFileOutput implements TransactionalFileOutput
                     .withRetryLimit(maxConnectionRetry)
                     .withInitialRetryWait(500)
                     .withMaxRetryWait(30 * 1000)
-                    .runInterruptible(new RetryExecutor.Retryable<Void>() {
+                    .runInterruptible(new Retryable<Void>() {
                         @Override
                         public Void call() throws StorageException, URISyntaxException, IOException
                         {
@@ -193,7 +197,6 @@ public class BlobFileOutput implements TransactionalFileOutput
         return Exec.newTaskReport();
     }
 
-    @VisibleForTesting
     public boolean isTempFileExist()
     {
         return file.exists();
