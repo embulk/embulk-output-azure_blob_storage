@@ -1,3 +1,6 @@
+## 0.2.1 - 2022-03-30
+* [maintenance] Remove deprecated functions [#21](https://github.com/embulk/embulk-output-azure_blob_storage/pull/21)
+
 ## 0.1.11 - 2022-12-09
 * [maintenance] catch up with embulk 0.10.29 [#18](https://github.com/embulk/embulk-output-azure_blob_storage/pull/18)
 
