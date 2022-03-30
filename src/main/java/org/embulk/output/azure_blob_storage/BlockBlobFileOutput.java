@@ -6,14 +6,13 @@ import com.microsoft.azure.storage.blob.BlockSearchMode;
 import com.microsoft.azure.storage.blob.CloudBlobClient;
 import com.microsoft.azure.storage.blob.CloudBlobContainer;
 import com.microsoft.azure.storage.blob.CloudBlockBlob;
-import com.microsoft.azure.storage.blob.DeleteSnapshotsOption;
 import org.embulk.config.ConfigException;
 import org.embulk.config.TaskReport;
 import org.embulk.spi.Buffer;
 import org.embulk.spi.DataException;
-import org.embulk.spi.Exec;
 import org.embulk.spi.TempFileSpace;
 import org.embulk.spi.TransactionalFileOutput;
+import org.embulk.util.retryhelper.RetryExecutor;
 import org.embulk.util.retryhelper.RetryGiveupException;
 import org.embulk.util.retryhelper.Retryable;
 import org.slf4j.Logger;
@@ -31,7 +30,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 
-import static org.embulk.util.retryhelper.RetryExecutor.retryExecutor;
+import static org.embulk.output.azure_blob_storage.AzureBlobStorageFileOutputPlugin.CONFIG_MAPPER_FACTORY;
 
 public class BlockBlobFileOutput implements TransactionalFileOutput
 {
@@ -179,10 +178,11 @@ public class BlockBlobFileOutput implements TransactionalFileOutput
         }
 
         try {
-            return retryExecutor()
+            return RetryExecutor.builder()
                     .withRetryLimit(maxConnectionRetry)
-                    .withInitialRetryWait(500)
-                    .withMaxRetryWait(30 * 1000)
+                    .withInitialRetryWaitMillis(500)
+                    .withMaxRetryWaitMillis(30 * 1000)
+                    .build()
                     .runInterruptible(new Retryable<Void>() {
                         @Override
                         public Void call() throws IOException, StorageException
@@ -262,6 +262,6 @@ public class BlockBlobFileOutput implements TransactionalFileOutput
     @Override
     public TaskReport commit()
     {
-        return Exec.newTaskReport();
+        return CONFIG_MAPPER_FACTORY.newTaskReport();
     }
 }
