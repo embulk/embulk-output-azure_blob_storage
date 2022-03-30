@@ -5,8 +5,6 @@ import com.microsoft.azure.storage.StorageException;
 import com.microsoft.azure.storage.blob.BlobType;
 import com.microsoft.azure.storage.blob.CloudBlobClient;
 import com.microsoft.azure.storage.blob.CloudBlobContainer;
-import com.microsoft.azure.storage.blob.CloudBlockBlob;
-
 import org.embulk.config.ConfigDiff;
 import org.embulk.config.ConfigException;
 import org.embulk.config.ConfigSource;
@@ -14,24 +12,18 @@ import org.embulk.config.TaskReport;
 import org.embulk.config.TaskSource;
 import org.embulk.spi.Exec;
 import org.embulk.spi.FileOutputPlugin;
-import org.embulk.spi.TempFileSpace;
 import org.embulk.spi.TransactionalFileOutput;
-
 import org.embulk.util.config.Config;
 import org.embulk.util.config.ConfigDefault;
 import org.embulk.util.config.ConfigMapper;
 import org.embulk.util.config.ConfigMapperFactory;
 import org.embulk.util.config.Task;
-import org.embulk.util.retryhelper.RetryGiveupException;
-import org.embulk.util.retryhelper.Retryable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.URISyntaxException;
 import java.security.InvalidKeyException;
 import java.util.List;
-
-import static org.embulk.util.retryhelper.RetryExecutor.retryExecutor;
 
 public class AzureBlobStorageFileOutputPlugin
         implements FileOutputPlugin
@@ -77,7 +69,6 @@ public class AzureBlobStorageFileOutputPlugin
         .addDefaultModules()
         .build();
     public static final ConfigMapper CONFIG_MAPPER = CONFIG_MAPPER_FACTORY.createConfigMapper();
-
 
     @Override
     public ConfigDiff transaction(ConfigSource config, int taskCount,

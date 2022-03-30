@@ -1,26 +1,18 @@
 package org.embulk.output.azure_blob_storage;
 
 import com.google.common.collect.Lists;
-import org.embulk.config.ConfigDiff;
-import org.embulk.config.ConfigException;
 import org.embulk.config.ConfigSource;
 import org.embulk.config.TaskReport;
-import org.embulk.config.TaskSource;
 import org.embulk.formatter.csv.CsvFormatterPlugin;
 import org.embulk.input.file.LocalFileInputPlugin;
 import org.embulk.output.azure_blob_storage.AzureBlobStorageFileOutputPlugin.PluginTask;
 import org.embulk.parser.csv.CsvParserPlugin;
-import org.embulk.spi.Exec;
 import org.embulk.spi.FileInputPlugin;
 import org.embulk.spi.FileOutputPlugin;
 import org.embulk.spi.FileOutputRunner;
 import org.embulk.spi.FormatterPlugin;
-import org.embulk.spi.OutputPlugin;
 import org.embulk.spi.ParserPlugin;
 import org.embulk.spi.Schema;
-import org.embulk.spi.type.Type;
-import org.embulk.spi.type.Types;
-
 import org.embulk.test.TestingEmbulk;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -28,18 +20,14 @@ import org.junit.Rule;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.net.URL;
-import java.nio.file.FileSystem;
 import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
-import java.util.List;
 
+import static org.embulk.output.azure_blob_storage.AzureBlobStorageFileOutputPlugin.CONFIG_MAPPER;
 import static org.embulk.output.azure_blob_storage.AzureBlobStorageFileOutputPlugin.CONFIG_MAPPER_FACTORY;
 import static org.embulk.output.azure_blob_storage.TestHelper.AZURE_ACCOUNT_KEY;
 import static org.embulk.output.azure_blob_storage.TestHelper.AZURE_ACCOUNT_NAME;
 import static org.embulk.output.azure_blob_storage.TestHelper.AZURE_CONTAINER;
-import static org.embulk.output.azure_blob_storage.TestHelper.Control;
-import static org.embulk.output.azure_blob_storage.TestHelper.LOCAL_PATH_PREFIX;
 import static org.embulk.output.azure_blob_storage.TestHelper.config;
 import static org.embulk.output.azure_blob_storage.TestHelper.deleteContainerIfExists;
 import static org.embulk.output.azure_blob_storage.TestHelper.formatterConfig;
@@ -48,8 +36,6 @@ import static org.embulk.output.azure_blob_storage.TestHelper.inputConfig;
 import static org.embulk.output.azure_blob_storage.TestHelper.isExistsContainer;
 import static org.embulk.output.azure_blob_storage.TestHelper.parserConfig;
 import static org.embulk.output.azure_blob_storage.TestHelper.schemaConfig;
-
-import static org.embulk.output.azure_blob_storage.AzureBlobStorageFileOutputPlugin.CONFIG_MAPPER;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeNotNull;
