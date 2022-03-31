@@ -12,7 +12,6 @@ import org.embulk.config.ConfigException;
 import org.embulk.config.ConfigSource;
 import org.embulk.config.TaskReport;
 import org.embulk.config.TaskSource;
-import org.embulk.spi.Exec;
 import org.embulk.spi.OutputPlugin;
 import org.embulk.spi.Schema;
 import org.embulk.spi.type.Types;
@@ -53,15 +52,18 @@ public class TestHelper
         // skip test cases, if environment variables are not set.
         AZURE_CONTAINER_DIRECTORY = System.getenv("AZURE_CONTAINER_DIRECTORY") != null ? getDirectory(System.getenv("AZURE_CONTAINER_DIRECTORY")) : getDirectory("");
         AZURE_PATH_PREFIX = AZURE_CONTAINER_DIRECTORY + "sample_";
-        LOCAL_PATH_PREFIX = Resources.getResource("sample_01.csv").getPath();
+        LOCAL_PATH_PREFIX = Resources.getResource("sample_01.csv")
+                .getPath();
     }
 
-    private TestHelper(){}
+    private TestHelper()
+    {
+    }
 
     public static byte[] convertInputStreamToByte(InputStream is) throws IOException
     {
         ByteArrayOutputStream bo = new ByteArrayOutputStream();
-        byte [] buffer = new byte[1024];
+        byte[] buffer = new byte[1024];
         while (true) {
             int len = is.read(buffer);
             if (len < 0) {
@@ -82,7 +84,7 @@ public class TestHelper
 
         ImmutableList.Builder<List<String>> builder = new ImmutableList.Builder<>();
 
-        InputStream is =  blob.openInputStream();
+        InputStream is = blob.openInputStream();
         BufferedReader reader = new BufferedReader(new InputStreamReader(is));
         String line;
         while ((line = reader.readLine()) != null) {
@@ -220,7 +222,7 @@ public class TestHelper
         @Override
         public List<TaskReport> run(TaskSource taskSource)
         {
-            return Lists.newArrayList(Exec.newTaskReport());
+            return Lists.newArrayList(CONFIG_MAPPER_FACTORY.newTaskReport());
         }
     }
 }

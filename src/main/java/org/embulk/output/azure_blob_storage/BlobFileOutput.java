@@ -7,7 +7,6 @@ import com.microsoft.azure.storage.blob.CloudBlockBlob;
 import org.embulk.config.ConfigException;
 import org.embulk.config.TaskReport;
 import org.embulk.spi.Buffer;
-import org.embulk.spi.Exec;
 import org.embulk.spi.TempFileSpace;
 import org.embulk.spi.TransactionalFileOutput;
 import org.embulk.util.retryhelper.RetryExecutor;
@@ -25,8 +24,8 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.URISyntaxException;
 
+import static org.embulk.output.azure_blob_storage.AzureBlobStorageFileOutputPlugin.CONFIG_MAPPER_FACTORY;
 import static org.embulk.output.azure_blob_storage.AzureBlobStorageFileOutputPlugin.PluginTask;
-import static org.embulk.util.retryhelper.RetryExecutor.retryExecutor;
 
 /**
  * Extract class from previous version of {@link AzureBlobStorageFileOutputPlugin} without logic modification
@@ -195,7 +194,7 @@ public class BlobFileOutput implements TransactionalFileOutput
     @Override
     public TaskReport commit()
     {
-        return Exec.newTaskReport();
+        return CONFIG_MAPPER_FACTORY.newTaskReport();
     }
 
     public boolean isTempFileExist()
