@@ -2,13 +2,10 @@ package org.embulk.output.azure_blob_storage;
 
 import com.google.common.collect.ImmutableList;
 import org.embulk.EmbulkSystemProperties;
-import org.embulk.EmbulkTestRuntime;
 import org.embulk.config.ConfigSource;
 import org.embulk.formatter.csv.CsvFormatterPlugin;
 import org.embulk.input.file.LocalFileInputPlugin;
 import org.embulk.parser.csv.CsvParserPlugin;
-import org.embulk.spi.Buffer;
-import org.embulk.spi.Exec;
 import org.embulk.spi.FileInputPlugin;
 import org.embulk.spi.FileOutputPlugin;
 import org.embulk.spi.FileOutputRunner;
@@ -21,9 +18,6 @@ import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.file.Paths;
@@ -35,13 +29,9 @@ import static org.embulk.output.azure_blob_storage.TestHelper.AZURE_ACCOUNT_KEY;
 import static org.embulk.output.azure_blob_storage.TestHelper.AZURE_ACCOUNT_NAME;
 import static org.embulk.output.azure_blob_storage.TestHelper.AZURE_CONTAINER;
 import static org.embulk.output.azure_blob_storage.TestHelper.AZURE_PATH_PREFIX;
-import static org.embulk.output.azure_blob_storage.TestHelper.LOCAL_PATH_PREFIX;
 import static org.embulk.output.azure_blob_storage.TestHelper.config;
-import static org.embulk.output.azure_blob_storage.TestHelper.convertInputStreamToByte;
 import static org.embulk.output.azure_blob_storage.TestHelper.getFileContentsFromAzure;
-import static org.embulk.output.azure_blob_storage.TestHelper.getSchema;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeNotNull;
 

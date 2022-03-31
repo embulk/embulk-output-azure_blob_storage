@@ -120,10 +120,11 @@ public class BlobFileOutput implements TransactionalFileOutput
         }
 
         try {
-            return retryExecutor()
+            return RetryExecutor.builder()
                     .withRetryLimit(maxConnectionRetry)
-                    .withInitialRetryWait(500)
-                    .withMaxRetryWait(30 * 1000)
+                    .withInitialRetryWaitMillis(500)
+                    .withMaxRetryWaitMillis(30 * 1000)
+                    .build()
                     .runInterruptible(new Retryable<Void>() {
                         @Override
                         public Void call() throws StorageException, URISyntaxException, IOException

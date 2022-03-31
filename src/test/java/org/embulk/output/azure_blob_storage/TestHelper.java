@@ -29,7 +29,6 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.embulk.output.azure_blob_storage.AzureBlobStorageFileOutputPlugin.CONFIG_MAPPER_FACTORY;
-import static org.junit.Assume.assumeNotNull;
 
 public class TestHelper
 {

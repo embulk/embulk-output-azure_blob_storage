@@ -1,25 +1,18 @@
 package org.embulk.output.azure_blob_storage;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
 import com.google.common.io.Resources;
-import com.microsoft.azure.storage.blob.BlobType;
 import com.microsoft.azure.storage.blob.CloudBlobClient;
 import org.embulk.EmbulkSystemProperties;
-import org.embulk.EmbulkTestRuntime;
 import org.embulk.config.ConfigSource;
-import org.embulk.config.TaskReport;
-import org.embulk.config.TaskSource;
 import org.embulk.formatter.csv.CsvFormatterPlugin;
 import org.embulk.input.file.LocalFileInputPlugin;
 import org.embulk.parser.csv.CsvParserPlugin;
 import org.embulk.spi.Buffer;
-import org.embulk.spi.Exec;
 import org.embulk.spi.FileInputPlugin;
 import org.embulk.spi.FileOutputPlugin;
 import org.embulk.spi.FileOutputRunner;
 import org.embulk.spi.FormatterPlugin;
-import org.embulk.spi.OutputPlugin;
 import org.embulk.spi.ParserPlugin;
 import org.embulk.spi.Schema;
 import org.embulk.spi.TempFileSpace;
@@ -29,31 +22,24 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.ExpectedException;
 import org.junit.rules.TemporaryFolder;
 
 import java.io.FileInputStream;
-import java.io.IOException;
 import java.io.OutputStream;
 import java.lang.reflect.Field;
-import java.nio.file.Paths;
 import java.util.List;
 import java.util.Properties;
 
 import static org.embulk.output.azure_blob_storage.AzureBlobStorageFileOutputPlugin.CONFIG_MAPPER;
-import static org.embulk.output.azure_blob_storage.AzureBlobStorageFileOutputPlugin.CONFIG_MAPPER_FACTORY;
 import static org.embulk.output.azure_blob_storage.TestHelper.AZURE_ACCOUNT_KEY;
 import static org.embulk.output.azure_blob_storage.TestHelper.AZURE_ACCOUNT_NAME;
 import static org.embulk.output.azure_blob_storage.TestHelper.AZURE_CONTAINER;
 import static org.embulk.output.azure_blob_storage.TestHelper.AZURE_PATH_PREFIX;
-import static org.embulk.output.azure_blob_storage.TestHelper.Control;
 import static org.embulk.output.azure_blob_storage.TestHelper.config;
 import static org.embulk.output.azure_blob_storage.TestHelper.convertInputStreamToByte;
 import static org.embulk.output.azure_blob_storage.TestHelper.getFileContentsFromAzure;
-import static org.embulk.output.azure_blob_storage.TestHelper.getSchema;
 import static org.embulk.output.azure_blob_storage.TestHelper.newAzureClient;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeNotNull;
 
 public class TestBlockBlobFileOutput
